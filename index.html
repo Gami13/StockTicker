@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Stock Ticker</title>
+	<style>
+		* {
+			box-sizing: border-box;
+
+		}
+
+		body {
+			font-family: Arial, sans-serif;
+			color: #ffffff;
+			margin: 0;
+
+		}
+
+		.container {
+			background-color: #2d2d2d;
+			border-radius: 10px;
+			box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+			text-align: center;
+			width: 160px;
+			height: fit-content;
+			padding: 8px;
+			gap: 4px;
+			display: flex;
+			flex-direction: column;
+
+		}
+
+
+
+		.stock-info {
+			font-size: 24px;
+		}
+
+		.price {
+			font-size: 32px;
+			font-weight: bold;
+			color: #4CAF50;
+		}
+
+		.changes {
+			display: flex;
+			justify-content: space-around;
+		}
+
+		.change {
+			font-size: 18px;
+		}
+
+
+		.timestamp {
+			color: #888;
+			font-size: 14px;
+		}
+
+
+
+		.connected {
+			background-color: #4CAF50;
+			color: white;
+		}
+
+		.disconnected {
+			background-color: #f44336;
+			color: white;
+		}
+
+		.loading {
+			background-color: #ff9800;
+			color: white;
+		}
+
+		.positive {
+			color: #4CAF50;
+		}
+
+		.negative {
+			color: #f44336;
+		}
+	</style>
+</head>
+
+<body>
+	<div class="container">
+		<div id="symbol" class="stock-info">--</div>
+
+
+		<div id="price" class="price">--</div>
+		<div class="changes">
+
+			<div id="change-absolute" class="change">--</div>
+			<div id="change-percent" class="change">--</div>
+		</div>
+
+		<div id="timestamp" class="timestamp">Last updated: --</div>
+	</div>
+	<script>
+		let ws;
+		let reconnectInterval = 5000; // 5 seconds
+		let lastUpdateTime = null;
+
+		function getRelativeTime(timestamp) {
+			if (!timestamp) return '--';
+
+			const now = new Date();
+			const updateTime = new Date(timestamp);
+			const diffInSeconds = Math.floor((now - updateTime) / 1000);
+
+			if (diffInSeconds < 60) {
+				return diffInSeconds + 's ago';
+			} else if (diffInSeconds < 3600) {
+				return Math.floor(diffInSeconds / 60) + 'm ago';
+			} else {
+				return Math.floor(diffInSeconds / 3600) + 'h ago';
+			}
+		}
+
+		function updateRelativeTime() {
+			if (lastUpdateTime) {
+				document.getElementById('timestamp').textContent = 'Last updated: ' + getRelativeTime(lastUpdateTime);
+			}
+		}
+
+		function connect() {
+			ws = new WebSocket('ws://localhost:8080/ws');
+
+			ws.onopen = function (event) {
+				console.log('Connected to WebSocket');
+
+			}; ws.onmessage = function (event) {
+				const data = JSON.parse(event.data);
+				console.log('Received:', data);
+
+				// Update symbol
+				if (data.symbol) {
+					document.getElementById('symbol').textContent = data.symbol;
+				}
+
+				// Update price
+				document.getElementById('price').textContent = '$' + data.price;
+
+				// Update absolute change
+				const changeAbsoluteElement = document.getElementById('change-absolute');
+				if (data.changeAbsolute) {
+					changeAbsoluteElement.textContent = data.changeAbsolute;
+					changeAbsoluteElement.className = 'change ' + (data.changeAbsolute.startsWith('-') ? 'negative' : 'positive');
+				}
+
+				// Update percent change
+				const changePercentElement = document.getElementById('change-percent');
+				if (data.changePercent) {
+					changePercentElement.textContent = '(' + data.changePercent + '%)';
+					changePercentElement.className = 'change ' + (data.changePercent.startsWith('-') ? 'negative' : 'positive');
+				}				// Update timestamp
+				lastUpdateTime = data.timestamp;
+				document.getElementById('timestamp').textContent = 'Last updated: ' + getRelativeTime(data.timestamp);
+			};
+
+			ws.onclose = function (event) {
+				console.log('WebSocket connection closed');
+
+
+				// Attempt to reconnect
+				setTimeout(connect, reconnectInterval);
+			};
+
+			ws.onerror = function (error) {
+				console.error('WebSocket error:', error);
+
+			};
+		}
+		// Start connection when page loads
+		connect();
+
+		// Update relative time every second
+		setInterval(updateRelativeTime, 1000);
+	</script>
+</body>
+
+</html>
