@@ -19,19 +19,21 @@
 		}
 
 		.container {
-			background-color: #2d2d2d;
-			border-radius: 10px;
-			text-align: center;
-			width: 160px;
-			height: fit-content;
-			padding: 20px;
-			gap: 10px;
+			background-color: #1a1a1a;
+			/* border-radius: 3px; */
+			text-align: left;
+			width: 500px;
+			height: 70px;
+			padding: 12px 24px;
+			gap: 30px;
 			display: flex;
-			flex-direction: column;
+			flex-direction: row;
+			align-items: center;
 		}
 
 		.stock-info {
-			font-size: 24px;
+			font-size: 28px;
+			font-weight: bold;
 		}
 
 		.price {
@@ -42,17 +44,16 @@
 
 		.changes {
 			display: flex;
-			justify-content: space-around;
+			gap: 16px;
 		}
 
 		.change {
-			font-size: 18px;
+			font-size: 24px;
 		}
-
 
 		.timestamp {
 			color: #888;
-			font-size: 14px;
+			font-size: 24px;
 		}
 
 
@@ -90,7 +91,7 @@
 			<div id="change-absolute" class="change">--</div>
 			<div id="change-percent" class="change">--</div>
 		</div>
-		<div id="timestamp" class="timestamp">Last updated: --</div>
+		<!-- <div id="timestamp" class="timestamp">--</div> -->
 	</div>
 	<script>
 		let ws;
@@ -111,7 +112,7 @@
 			document.getElementById('price').textContent = message;
 			document.getElementById('change-absolute').textContent = '--';
 			document.getElementById('change-percent').textContent = '--';
-			document.getElementById('timestamp').textContent = '--';
+			// document.getElementById('timestamp').textContent = '--';
 		}
 
 		function subscribeToStock(symbol) {
@@ -132,7 +133,7 @@
 				document.getElementById('price').textContent = 'Loading...';
 				document.getElementById('change-absolute').textContent = '--';
 				document.getElementById('change-percent').textContent = '--';
-				document.getElementById('timestamp').textContent = 'Connecting...';
+				// document.getElementById('timestamp').textContent = 'Connecting...';
 
 				console.log('Subscribed to', symbol);
 			} else {
@@ -147,18 +148,14 @@
 			const updateTime = new Date(timestamp);
 			const diffInSeconds = Math.floor((now - updateTime) / 1000);
 
-			if (diffInSeconds < 60) {
-				return diffInSeconds + 's ago';
-			} else if (diffInSeconds < 3600) {
-				return Math.floor(diffInSeconds / 60) + 'm ago';
-			} else {
-				return Math.floor(diffInSeconds / 3600) + 'h ago';
-			}
+
+			return diffInSeconds + 's ago';
+
 		}
 
 		function updateRelativeTime() {
 			if (lastUpdateTime) {
-				document.getElementById('timestamp').textContent = 'Last updated: ' + getRelativeTime(lastUpdateTime);
+				document.getElementById('timestamp').textContent = getRelativeTime(lastUpdateTime);
 			}
 		} function connect() {
 			ws = new WebSocket('ws://localhost:8081/ws');
@@ -194,7 +191,7 @@
 					changePercentElement.className = 'change ' + (data.changePercent.startsWith('-') ? 'negative' : 'positive');
 				}				// Update timestamp
 				lastUpdateTime = data.timestamp;
-				document.getElementById('timestamp').textContent = 'Last updated: ' + getRelativeTime(data.timestamp);
+				// updateRelativeTime();
 			}; ws.onclose = function (event) {
 				console.log('WebSocket connection closed');
 				showError('Connection lost. Reconnecting...');

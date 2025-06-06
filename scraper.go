@@ -29,10 +29,7 @@ func NewStockScraper() (*StockScraper, error) {
 	)
 
 	allocCtx, _ := chromedp.NewExecAllocator(context.Background(), opts...)
-
-	scraper := &StockScraper{allocCtx: allocCtx}
-
-	return scraper, nil
+	return &StockScraper{allocCtx: allocCtx}, nil
 }
 
 // GetStockPrice scrapes the current stock price for a specific symbol
@@ -45,7 +42,7 @@ func (s *StockScraper) GetStockPrice(symbol string) (StockPrice, error) {
 	defer cancel()
 
 	// Set a timeout for the scraping operation
-	ctx, timeoutCancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx, timeoutCancel := context.WithTimeout(ctx, 15*time.Second)
 	defer timeoutCancel()
 
 	// Navigate to the specific stock's page

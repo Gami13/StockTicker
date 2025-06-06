@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"log"
 	"net/http"
 )
@@ -44,9 +45,13 @@ func WebSocketHandler(hub *Hub) http.HandlerFunc {
 	}
 }
 
+//go:embed index.html
+var html string
+
 // StaticHandler serves the HTML page
 func StaticHandler() http.HandlerFunc {
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "index.html")
+		http.ServeFile(w, r, html)
 	}
 }
