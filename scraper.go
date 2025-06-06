@@ -12,10 +12,10 @@ import (
 
 // StockScraper handles stock price scraping from Bing
 type StockScraper struct {
-	ctx context.Context
+	allocCtx context.Context
 }
 
-// NewStockScraper creates a new stock scraper with Chrome context
+// NewStockScraper creates a new stock scraper with Chrome allocator context
 func NewStockScraper() (*StockScraper, error) {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", true),
@@ -29,57 +29,51 @@ func NewStockScraper() (*StockScraper, error) {
 	)
 
 	allocCtx, _ := chromedp.NewExecAllocator(context.Background(), opts...)
-	ctx, _ := chromedp.NewContext(allocCtx)
 
-	scraper := &StockScraper{ctx: ctx}
-
-	// Initialize the page
-	if err := scraper.initialize(); err != nil {
-		return nil, fmt.Errorf("failed to initialize scraper: %w", err)
-	}
+	scraper := &StockScraper{allocCtx: allocCtx}
 
 	return scraper, nil
 }
 
-// initialize loads the initial page
-func (s *StockScraper) initialize() error {
-	return chromedp.Run(s.ctx,
-		chromedp.Navigate(fmt.Sprintf("https://www.bing.com/search?q=%s+stock+price", "AAPL")),
-		chromedp.WaitReady("body"),
-		chromedp.WaitReady(".b_focusTextMedium", chromedp.ByQuery),
-		chromedp.Sleep(2*time.Second),
-	)
-}
-
-// GetStockPrice scrapes the current stock price
+// GetStockPrice scrapes the current stock price for a specific symbol
 func (s *StockScraper) GetStockPrice(symbol string) (StockPrice, error) {
 	var stockPrice StockPrice
 	var changeString string
 
-	// Refresh the page
-	err := chromedp.Run(s.ctx,
-		chromedp.Reload(),
+	// Create a new context for this request to avoid conflicts
+	ctx, cancel := chromedp.NewContext(s.allocCtx)
+	defer cancel()
+
+	// Set a timeout for the scraping operation
+	ctx, timeoutCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer timeoutCancel()
+
+	// Navigate to the specific stock's page
+	url := fmt.Sprintf("https://www.bing.com/search?q=%s+stock+price", symbol)
+	err := chromedp.Run(ctx,
+		chromedp.Navigate(url),
+		chromedp.WaitReady("body"),
 		chromedp.WaitReady(".b_focusTextMedium", chromedp.ByQuery),
 		chromedp.Sleep(2*time.Second),
 	)
 	if err != nil {
-		return stockPrice, fmt.Errorf("error refreshing page: %w", err)
+		return stockPrice, fmt.Errorf("error navigating to %s stock page: %w", symbol, err)
 	}
 
 	// Get the stock price
-	err = chromedp.Run(s.ctx,
+	err = chromedp.Run(ctx,
 		chromedp.Text(".b_focusTextMedium", &stockPrice.Price, chromedp.ByQuery),
 	)
 	if err != nil || stockPrice.Price == "" {
-		return stockPrice, fmt.Errorf("error getting stock price: %w", err)
+		return stockPrice, fmt.Errorf("error getting stock price for %s: %w", symbol, err)
 	}
 
 	// Get the change information
-	err = chromedp.Run(s.ctx,
+	err = chromedp.Run(ctx,
 		chromedp.Text(".fin_change", &changeString, chromedp.ByQuery),
 	)
 	if err != nil {
-		log.Printf("Warning: Could not get change information: %v", err)
+		log.Printf("Warning: Could not get change information for %s: %v", symbol, err)
 	}
 
 	// Parse change information

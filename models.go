@@ -1,6 +1,10 @@
 package main
 
-import "time"
+import (
+	"time"
+
+	"github.com/gorilla/websocket"
+)
 
 // StockPrice represents the current stock price and change information
 type StockPrice struct {
@@ -13,16 +17,26 @@ type StockPrice struct {
 
 // Config holds application configuration
 type Config struct {
-	StockSymbol string
-	Interval    time.Duration
-	Port        string
+	Interval time.Duration
+	Port     string
 }
 
 // NewConfig creates a new configuration with default values
 func NewConfig() *Config {
 	return &Config{
-		StockSymbol: "AAPL",
-		Interval:    5 * time.Second,
-		Port:        ":8080",
+		Interval: 5 * time.Second,
+		Port:     ":8081",
 	}
+}
+
+// ClientMessage represents a message from the client
+type ClientMessage struct {
+	Type   string `json:"type"`
+	Symbol string `json:"symbol"`
+}
+
+// Client represents a WebSocket client with their requested stock symbol
+type Client struct {
+	Conn   *websocket.Conn
+	Symbol string
 }

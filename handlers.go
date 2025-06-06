@@ -14,20 +14,39 @@ func WebSocketHandler(hub *Hub) http.HandlerFunc {
 			return
 		}
 
-		hub.register <- conn
+		client := &Client{
+			Conn:   conn,
+			Symbol: "", // Will be set when client sends a request
+		}
 
-		// Keep the connection alive and handle disconnection
+		// Keep the connection alive and handle messages
 		go func() {
 			defer func() {
-				hub.unregister <- conn
+				hub.unregister <- client
 			}()
 
 			for {
-				_, _, err := conn.ReadMessage()
+				var message ClientMessage
+				err := conn.ReadJSON(&message)
 				if err != nil {
+					log.Printf("WebSocket read error: %v", err)
 					break
+				}
+
+				// Handle stock symbol request
+				if message.Type == "subscribe" && message.Symbol != "" {
+					client.Symbol = message.Symbol
+					hub.register <- client
+					log.Printf("Client subscribed to %s", message.Symbol)
 				}
 			}
 		}()
+	}
+}
+
+// StaticHandler serves the HTML page
+func StaticHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "index.html")
 	}
 }

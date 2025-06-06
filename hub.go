@@ -16,20 +16,20 @@ var upgrader = websocket.Upgrader{
 
 // Hub maintains the set of active clients and broadcasts messages to the clients
 type Hub struct {
-	clients    map[*websocket.Conn]bool
+	clients    map[*Client]bool
 	broadcast  chan StockPrice
-	register   chan *websocket.Conn
-	unregister chan *websocket.Conn
+	register   chan *Client
+	unregister chan *Client
 	mutex      sync.RWMutex
 }
 
 // NewHub creates a new WebSocket hub
 func NewHub() *Hub {
 	return &Hub{
-		clients:    make(map[*websocket.Conn]bool),
+		clients:    make(map[*Client]bool),
 		broadcast:  make(chan StockPrice),
-		register:   make(chan *websocket.Conn),
-		unregister: make(chan *websocket.Conn),
+		register:   make(chan *Client),
+		unregister: make(chan *Client),
 	}
 }
 
@@ -37,11 +37,11 @@ func NewHub() *Hub {
 func (h *Hub) Run() {
 	for {
 		select {
-		case conn := <-h.register:
-			h.registerClient(conn)
+		case client := <-h.register:
+			h.registerClient(client)
 
-		case conn := <-h.unregister:
-			h.unregisterClient(conn)
+		case client := <-h.unregister:
+			h.unregisterClient(client)
 
 		case stockPrice := <-h.broadcast:
 			h.broadcastToClients(stockPrice)
@@ -49,18 +49,18 @@ func (h *Hub) Run() {
 	}
 }
 
-func (h *Hub) registerClient(conn *websocket.Conn) {
+func (h *Hub) registerClient(client *Client) {
 	h.mutex.Lock()
-	h.clients[conn] = true
+	h.clients[client] = true
 	h.mutex.Unlock()
-	log.Printf("Client connected. Total clients: %d", len(h.clients))
+	log.Printf("Client connected requesting %s. Total clients: %d", client.Symbol, len(h.clients))
 }
 
-func (h *Hub) unregisterClient(conn *websocket.Conn) {
+func (h *Hub) unregisterClient(client *Client) {
 	h.mutex.Lock()
-	if _, ok := h.clients[conn]; ok {
-		delete(h.clients, conn)
-		conn.Close()
+	if _, ok := h.clients[client]; ok {
+		delete(h.clients, client)
+		client.Conn.Close()
 	}
 	h.mutex.Unlock()
 	log.Printf("Client disconnected. Total clients: %d", len(h.clients))
@@ -70,11 +70,14 @@ func (h *Hub) broadcastToClients(stockPrice StockPrice) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
-	for conn := range h.clients {
-		if err := conn.WriteJSON(stockPrice); err != nil {
-			log.Printf("Error writing to client: %v", err)
-			delete(h.clients, conn)
-			conn.Close()
+	for client := range h.clients {
+		// Only send to clients requesting this specific stock symbol
+		if client.Symbol == stockPrice.Symbol {
+			if err := client.Conn.WriteJSON(stockPrice); err != nil {
+				log.Printf("Error writing to client: %v", err)
+				delete(h.clients, client)
+				client.Conn.Close()
+			}
 		}
 	}
 }
@@ -86,4 +89,23 @@ func (h *Hub) Broadcast(stockPrice StockPrice) {
 	default:
 		log.Println("Broadcast channel full, dropping message")
 	}
+}
+
+// GetRequestedSymbols returns a slice of unique stock symbols requested by clients
+func (h *Hub) GetRequestedSymbols() []string {
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	symbolMap := make(map[string]bool)
+	for client := range h.clients {
+		if client.Symbol != "" {
+			symbolMap[client.Symbol] = true
+		}
+	}
+
+	symbols := make([]string, 0, len(symbolMap))
+	for symbol := range symbolMap {
+		symbols = append(symbols, symbol)
+	}
+	return symbols
 }
